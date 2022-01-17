@@ -83,7 +83,7 @@ class AttributeType:
 		
 		elif self.type == AttributeType.NESTED: return encode(value, self.map)
 		elif self.type == AttributeType.ARRAY:
-			attrs = {i + self.offset: self.etype.encode(item) for i, item in enumerate(value)}
+			attrs = {i + self.base: self.etype.encode(item) for i, item in enumerate(value)}
 			return encode_raw(attrs)
 		elif self.type == AttributeType.DICT:
 			attrs = {key: self.etype.encode(val) for key, val in value.items()}

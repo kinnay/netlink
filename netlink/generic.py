@@ -259,4 +259,5 @@ async def connect():
 	})
 	
 	async with netlink.connect(netlink.NETLINK_GENERIC) as sock:
-		yield GenericNetlinkController(sock, family)
+		receiver = GenericNetlinkReceiver(sock)
+		yield GenericNetlinkController(receiver, family)

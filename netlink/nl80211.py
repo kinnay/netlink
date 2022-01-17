@@ -1,5 +1,6 @@
 
 from netlink import generic, attributes
+import contextlib
 
 NL80211_CMD_UNSPEC = 0
 NL80211_CMD_GET_WIPHY = 1
@@ -1030,7 +1031,8 @@ class NL80211(generic.GenericNetlinkSocket):
 		#86
 		NL80211_ATTR_MAX_NUM_PMKIDS: attributes.u8(),
 		
-		#89
+		#88 - 89
+		NL80211_ATTR_COOKIE: attributes.u64(),
 		NL80211_ATTR_WIPHY_COVERAGE_CLASS: attributes.u8(),
 		
 		#91
@@ -1067,9 +1069,10 @@ class NL80211(generic.GenericNetlinkSocket):
 		NL80211_ATTR_INTERFACE_COMBINATIONS: attributes.array(attributes.nested(ATTRIBUTES_IFACE_COMB), base=1),
 		NL80211_ATTR_SOFTWARE_IFTYPES: attributes.array(attributes.flag()),
 		
-		#123 - 124
+		#123 - 125
 		NL80211_ATTR_MAX_NUM_SCHED_SCAN_SSIDS: attributes.u8(),
 		NL80211_ATTR_MAX_SCHED_SCAN_IE_LEN: attributes.u16(),
+		NL80211_ATTR_SCAN_SUPP_RATES: attributes.dict(attributes.binary()),
 		
 		#130 - 131
 		NL80211_ATTR_SUPPORT_AP_UAPSD: attributes.flag(),
@@ -1077,6 +1080,9 @@ class NL80211(generic.GenericNetlinkSocket):
 		
 		#133
 		NL80211_ATTR_MAX_MATCH_SETS: attributes.u8(),
+		
+		#135
+		NL80211_ATTR_TX_NO_CCK_RATE: attributes.flag(),
 		
 		#139 - 140
 		NL80211_ATTR_TDLS_SUPPORT: attributes.flag(),
@@ -1091,6 +1097,9 @@ class NL80211(generic.GenericNetlinkSocket):
 		
 		#153
 		NL80211_ATTR_WDEV: attributes.u64(),
+		
+		#158
+		NL80211_ATTR_SCAN_FLAGS: attributes.u32(),
 		
 		#166
 		NL80211_ATTR_MAC_ADDRS: attributes.array(attributes.binary(), base=1),
@@ -1132,8 +1141,18 @@ class NL80211(generic.GenericNetlinkSocket):
 		NL80211_ATTR_MAX_SCAN_PLAN_INTERVAL: attributes.u32(),
 		NL80211_ATTR_MAX_SCAN_PLAN_ITERATIONS: attributes.u32(),
 		
+		#229
+		NL80211_ATTR_PAD: attributes.padding(),
+		
+		#235 - 236
+		NL80211_ATTR_MEASUREMENT_DURATION: attributes.u16(),
+		NL80211_ATTR_MEASUREMENT_DURATION_MANDATORY: attributes.flag(),
+		
 		#239
 		NL80211_ATTR_BANDS: attributes.u32(),
+		
+		#245
+		NL80211_ATTR_BSSID: attributes.binary(),
 		
 		#256
 		NL80211_ATTR_SCHED_SCAN_MAX_REQS: attributes.u32(),
@@ -1142,11 +1161,14 @@ class NL80211(generic.GenericNetlinkSocket):
 		NL80211_ATTR_TXQ_STATS: attributes.nested(ATTRIBUTES_TXQ_STATS),
 		NL80211_ATTR_TXQ_LIMIT: attributes.u32(),
 		NL80211_ATTR_TXQ_MEMORY_LIMIT: attributes.u32(),
-		NL80211_ATTR_TXQ_QUANTUM: attributes.u32()
+		NL80211_ATTR_TXQ_QUANTUM: attributes.u32(),
+		
+		#292
+		NL80211_ATTR_SCAN_FREQ_KHZ: attributes.array(attributes.u32()),
 	})
 
 
 @contextlib.asynccontextmanager
 async def connect():
 	async with generic.connect() as ctrl:
-		yield await ctrl.get("nl80211", NL82011)
+		yield await ctrl.get("nl80211", NL80211)
