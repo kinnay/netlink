@@ -52,18 +52,6 @@ CTRL_ATTR_POLICY_DO = 1
 CTRL_ATTR_POLICY_DUMP = 2
 
 
-class Command:
-	def __init__(self, attributes):
-		self.id = attributes[CTRL_ATTR_OP_ID]
-		self.flags = attributes[CTRL_ATTR_OP_FLAGS]
-
-
-class MulticastGroup:
-	def __init__(self, attributes):
-		self.name = attributes[CTRL_ATTR_MCAST_GRP_NAME]
-		self.id = attributes[CTRL_ATTR_MCAST_GRP_ID]
-
-
 class Family:
 	def __init__(self, attributes):
 		self.id = attributes[CTRL_ATTR_FAMILY_ID]
@@ -71,8 +59,18 @@ class Family:
 		self.version = attributes[CTRL_ATTR_VERSION]
 		self.hdrsize = attributes[CTRL_ATTR_HDRSIZE]
 		self.maxattr = attributes[CTRL_ATTR_MAXATTR]
-		self.commands = [Command(op) for op in attributes.get(CTRL_ATTR_OPS, [])]
-		self.mcast_groups = [MulticastGroup(group) for group in attributes.get(CTRL_ATTR_MCAST_GROUPS, [])]
+		
+		self.commands = {}
+		for op in attributes.get(CTRL_ATTR_OPS, []):
+			id = op[CTRL_ATTR_OP_ID]
+			flags = op[CTRL_ATTR_OP_FLAGS]
+			self.commands[id] = flags
+		
+		self.mcast_groups = {}
+		for group in attributes.get(CTRL_ATTR_MCAST_GROUPS, []):
+			name = group[CTRL_ATTR_MCAST_GRP_NAME]
+			id = group[CTRL_ATTR_MCAST_GRP_ID]
+			self.mcast_groups[name] = id
 
 
 class CommandPolicy:
@@ -106,10 +104,10 @@ class Policy:
 
 
 class GenericNetlinkMessage:
-	def __init__(self, family, flags, cmd, version, header, attributes):
+	def __init__(self, family, flags, type, version, header, attributes):
 		self.family = family
 		self.flags = flags
-		self.cmd = cmd
+		self.type = type
 		self.version = version
 		self.header = header
 		self.attributes = attributes
@@ -119,6 +117,9 @@ class GenericNetlinkReceiver:
 	def __init__(self, netlink):
 		self.netlink = netlink
 		self.messages = {}
+	
+	def add_membership(self, id):
+		self.netlink.add_membership(id)
 	
 	async def receive(self, family):
 		if family not in self.messages:
@@ -142,6 +143,11 @@ class GenericNetlinkSocket:
 	def __init__(self, netlink, family):
 		self.netlink = netlink
 		self.family = family
+
+	def add_membership(self, name):
+		if name not in self.family.mcast_groups:
+			raise ValueError("Unknown multicast group: %s" %name)
+		self.netlink.add_membership(self.family.mcast_groups[name])
 	
 	def parse_message(self, message):
 		attroffs = (self.family.hdrsize + 3) & ~3

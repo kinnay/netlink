@@ -1,4 +1,5 @@
 
+from netlink import attributes
 import contextlib
 import itertools
 import struct
@@ -84,6 +85,14 @@ NETLINK_GET_STRICT_CHK = 12
 SOL_NETLINK = 270
 
 
+ATTRIBUTES_ERROR = {
+	NLMSGERR_ATTR_MSG: attributes.string(),
+	NLMSGERR_ATTR_OFFS: attributes.u32(),
+	NLMSGERR_ATTR_COOKIE: attributes.binary(),
+	NLMSGERR_ATTR_POLICY: attributes.nested(attributes.ATTRIBUTES_POLICY_TYPE)
+}
+
+
 class NetlinkMessage:
 	def __init__(self, type, flags, payload):
 		self.type = type
@@ -107,10 +116,12 @@ class NetlinkSocket:
 	def __exit__(self, typ, val, tb):
 		self.send_channel.close()
 	
+	def add_membership(self, id):
+		self.s.setsockopt(SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, id)
+	
 	async def start(self):
 		while True:
 			data = await self.s.recv(65536)
-			
 			while data:
 				length, type, flags, sequence, pid = struct.unpack_from("IHHII", data)
 				payload = data[16:length]
@@ -156,7 +167,12 @@ class NetlinkSocket:
 		if response.type == NLMSG_ERROR:
 			code = struct.unpack_from("i", response.payload)[0]
 			if code != 0:
-				raise OSError(-code, os.strerror(-code))
+				message = os.strerror(-code)
+				if response.flags & NLM_F_ACK_TLVS:
+					attrs = attributes.decode(response.payload[20:], ATTRIBUTES_ERROR)
+					if NLMSGERR_ATTR_MSG in attrs:
+						message = "%s: %s" %(message, attrs[NLMSGERR_ATTR_MSG])
+				raise OSError(-code, message)
 		elif response.type != NLMSG_DONE:
 			raise RuntimeError("Expected ack or error packet")
 		
@@ -171,6 +187,7 @@ async def connect(family):
 	s = trio.socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, family)
 	with s:
 		s.setsockopt(SOL_NETLINK, NETLINK_CAP_ACK, True)
+		s.setsockopt(SOL_NETLINK, NETLINK_EXT_ACK, True)
 		
 		await s.bind((0, 0))
 		sock = NetlinkSocket(s)

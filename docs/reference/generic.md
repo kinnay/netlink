@@ -11,8 +11,6 @@ Provides an implementation of the generic netlink protocol.
 <code>**class** [GenericNetlinkController](#genericnetlinkcontroller)([GenericNetlinkSocket](#genericnetlinksocket))</code><br>
 <span class="docs">Implements the `nlctrl` family. Can be used to access other families.</span>
 
-<code>**class** [Command](#command)</code><br>
-<code>**class** [MulticastGroup](#multicastgroup)</code><br>
 <code>**class** [Family](#family)</code><br>
 <code>**class** [CommandPolicy](#commandpolicy)</code><br>
 <code>**class** [Policy](#policy)</code><br>
@@ -33,13 +31,16 @@ Provides an implementation of the generic netlink protocol.
 ## GenericNetlinkMessage
 `family: int`<br>
 `flags: int`<br>
-`cmd: int`<br>
+`type: int`<br>
 `version: int`<br>
 `header: bytes`<br>
 `attributes: dict[int, object]`
 
 ## GenericNetlinkSocket
 This class and its subclasses should not be instantiated directly. Instead, one should obtain an instance from <code>[GenericNetlinkController](#genericnetlinkcontroller).get()</code> or another function.
+
+<code>**def add_membership**(name: str) ->  None</code><br>
+<span class="docs">Adds the underlying netlink socket to a multicast group.</span>
 
 <code>**async def receive**() -> [GenericNetlinkMessage](#genericnetlinkmessage)</code><br>
 <span class="docs">Receives a netlink message from the kernel for the netlink family that belongs to this socket.</span>
@@ -68,22 +69,14 @@ This class inherits [`GenericNetlinkSocket`](#genericnetlinksocket). It provides
 <code>**async def get_policy_by_name**(name: str, cmd: int = None) -> [Policy](#policy)</code><br>
 <span class="docs">Requests the policy for all commands of the given family name, or a specific command if `cmd` is given.</span>
 
-## Command
-`id: int`<br>
-`flags: int`
-
-## MulticastGroup
-`name: str`<br>
-`id: int`
-
 ## Family
 `id: int`<br>
 `name: str`<br>
 `version: int`<br>
 `hdrsize: int`<br>
 `maxattr: int`<br>
-<code>commands: list[[Command](#command)]</code><br>
-<code>mcast_groups: list[[MulticastGroup](#multicastgroup)]</code>
+<code>commands: dict[int, int]</code><br>
+<code>mcast_groups: dict[str, int]</code>
 
 ## CommandPolicy
 `do: int | None`<br>

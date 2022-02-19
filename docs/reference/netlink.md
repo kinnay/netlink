@@ -79,6 +79,9 @@ Provides a basic implementation of the netlink protocol.
 `payload: bytes`
 
 ## NetlinkSocket
+<code>**def add_membership**(id: int) ->  None</code><br>
+<span class="docs">Adds the netlink socket to a multicast group.</span>
+
 <code>**async def request**(type: int, payload: bytes = b"", flags: int = 0) -> list[[NetlinkMessage](#netlinkmessage)]</code><br>
 <span class="docs">Sends a netlink request to the kernel and waits for an acknowledgement. The `flags` argument can be used to specify additional [flags](#netlink-flags) (e.g. `NLM_F_DUMP`). The flags `NLM_F_REQUEST` and `NLM_F_ACK` are always added to the request automatically. Returns the messages that were received from the kernel with a matching sequence id. Raises `OSError` if the kernel returns an error code.</span>
 
