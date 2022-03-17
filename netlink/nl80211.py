@@ -1159,15 +1159,14 @@ class NL80211(generic.GenericNetlinkSocket):
 		NL80211_ATTR_MAX_SCAN_IE_LEN: attributes.u16(),
 		NL80211_ATTR_CIPHER_SUITES: attributes.binary(),
 		
-		#61 - 66
+		#61 - 68
 		NL80211_ATTR_WIPHY_RETRY_SHORT: attributes.u8(),
 		NL80211_ATTR_WIPHY_RETRY_LONG: attributes.u8(),
 		NL80211_ATTR_WIPHY_FRAG_THRESHOLD: attributes.u32(),
 		NL80211_ATTR_WIPHY_RTS_THRESHOLD: attributes.u32(),
 		NL80211_ATTR_TIMED_OUT: attributes.flag(),
 		NL80211_ATTR_USE_MFP: attributes.u32(),
-		
-		#68
+		NL80211_ATTR_STA_FLAGS2: attributes.binary(),
 		NL80211_ATTR_CONTROL_PORT: attributes.flag(),
 		
 		#70 - 83
