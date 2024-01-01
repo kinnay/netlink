@@ -1249,8 +1249,7 @@ class NL80211(generic.GenericNetlinkSocket):
 		#139 - 140
 		NL80211_ATTR_TDLS_SUPPORT: attributes.flag(),
 		NL80211_ATTR_TDLS_EXTERNAL_SETUP: attributes.flag(),
-		
-		#142 - 144
+		NL80211_ATTR_DEVICE_AP_SME: attributes.u32(),
 		NL80211_ATTR_DONT_WAIT_FOR_ACK: attributes.flag(),
 		NL80211_ATTR_FEATURE_FLAGS: attributes.u32(),
 		NL80211_ATTR_PROBE_RESP_OFFLOAD: attributes.u32(),
@@ -1271,11 +1270,13 @@ class NL80211(generic.GenericNetlinkSocket):
 		
 		#166
 		NL80211_ATTR_MAC_ADDRS: attributes.array(attributes.binary(), base=1),
+		NL80211_ATTR_MAC_ACL_MAX: attributes.u32(),
 		
 		#169 - 171
 		NL80211_ATTR_EXT_CAPA: attributes.binary(),
 		NL80211_ATTR_EXT_CAPA_MASK: attributes.binary(),
 		NL80211_ATTR_STA_CAPABILITY: attributes.u16(),
+		NL80211_ATTR_STA_EXT_CAPABILITY: attributes.binary(),
 		
 		#174
 		NL80211_ATTR_SPLIT_WIPHY_DUMP: attributes.flag(),
