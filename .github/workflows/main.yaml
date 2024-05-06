@@ -1,0 +1,55 @@
+name: Release 
+
+on:
+  push:
+    branches: master
+
+jobs:
+  build-archlinux:
+    name: Build
+    runs-on: ubuntu-latest
+
+    outputs:
+      package-name: ${{ steps.build.outputs.package-name }}
+        
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.7, '3.8', '3.9', '3.10', '3.11']
+
+    container:
+      image: 'archlinux:base'
+
+    steps:
+      - name: Prepare container
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm python-trio
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build distribution
+        run: python setup.py sdist bdist_wheel
+
+      - name: Package and Upload
+        run: |
+            export TAG=`git describe --tags`
+            export DISTDIR=netlink-bin-x86_64-${TAG:1}
+            echo "package-name=$DISTDIR.tar.gz" >> $GITHUB_OUTPUT
+            mkdir -p $DISTDIR/usr/share/licenses/netlink/
+            cp LICENSE $DISTDIR/usr/share/licenses/netlink/LICENSE
+            ls $DISTDIR | xargs tar -czf $DISTDIR.tar.gz -C $DISTDIR/
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+            files: ${{ steps.build.outputs.package-name }}
+            draft: true
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
