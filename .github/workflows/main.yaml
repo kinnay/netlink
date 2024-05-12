@@ -19,6 +19,9 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm python-trio git
 
+      - name: Git Safe Directory
+        run: 	git config --global --add safe.directory /__w/netlink/netlink
+        
       - name: Install Python
         uses: actions/setup-python@v5
         with:
