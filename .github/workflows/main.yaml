@@ -39,7 +39,7 @@ jobs:
             git fetch --all --tags
             export TAG=$(git tag)
             echo "tag=$TAG" >> $GITHUB_ENV
-            export PKGNAME=netlink-bin-x86_64-${TAG:1}
+            export PKGNAME=netlink-x86_64-${TAG:1}
             echo "package-name=$PKGNAME.tar.gz" >> $GITHUB_OUTPUT
             ls | xargs tar -czf $PKGNAME.tar.gz
 
