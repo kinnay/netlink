@@ -17,7 +17,7 @@ jobs:
       - name: Prepare container and Install Dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm python-trio
+          pacman -S --noconfirm python-trio git
 
       - name: Install Python
         uses: actions/setup-python@v5
