@@ -34,8 +34,11 @@ jobs:
         run: python setup.py sdist
 
       - name: Package and Upload
+        id: tag-archive
         run: |
-            export TAG=`git tag`
+            git fetch --all --tags
+            export TAG=$(git tag)
+            echo "tag=$TAG" >> $GITHUB_ENV
             export PKGNAME=netlink-bin-x86_64-${TAG:1}
             echo "package-name=$PKGNAME.tar.gz" >> $GITHUB_OUTPUT
             ls | xargs tar -czf $PKGNAME.tar.gz
@@ -43,7 +46,10 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v1
         with:
-            files: ${{ steps.build.outputs.package-name }}
+            files: ${{ steps.tag-archive.outputs.package-name }}
+            prerelease: false
             draft: false
+            name: "netlink"
+            tag_name: ${{ env.tag }}
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
