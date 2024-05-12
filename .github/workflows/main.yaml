@@ -21,7 +21,7 @@ jobs:
 
       - name: Git Safe Directory
         run: 	git config --global --add safe.directory /__w/netlink/netlink
-        
+
       - name: Install Python
         uses: actions/setup-python@v5
         with:
@@ -44,6 +44,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
             files: ${{ steps.build.outputs.package-name }}
-            draft: true
+            draft: false
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
