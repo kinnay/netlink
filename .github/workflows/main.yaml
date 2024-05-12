@@ -1,8 +1,6 @@
 name: Release 
 
-on:
-  push:
-    branches: master
+on: [push]
 
 jobs:
   build-archlinux:
@@ -12,48 +10,46 @@ jobs:
     outputs:
       package-name: ${{ steps.build.outputs.package-name }}
         
-    strategy:
-      # Build on Multiple Versions
-      fail-fast: false
-      matrix:
-          python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
-
     container:
       image: 'archlinux:base'
 
     steps:
-      - name: Prepare container
+      - name: Prepare container and Install Dependencies
         run: |
           pacman -Syu --noconfirm
           pacman -S --noconfirm python-trio git
 
+      - name: Git Safe Directory
+        run: 	git config --global --add safe.directory /__w/netlink/netlink
+
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Git Safe Directory
-        run: git config --global --add safe.directory /__w/netlink/netlink
-
       - name: Build distribution
-        run: python setup.py install
+        run: python setup.py sdist
 
       - name: Package and Upload
+        id: tag-archive
         run: |
-            export TAG=`git describe --tags`
-            export DISTDIR=netlink-bin-x86_64-${TAG:1}
-            echo "package-name=$DISTDIR.tar.gz" >> $GITHUB_OUTPUT
-            mkdir -p $DISTDIR/usr/share/licenses/netlink/
-            cp LICENSE $DISTDIR/usr/share/licenses/netlink/LICENSE
-            ls $DISTDIR | xargs tar -czf $DISTDIR.tar.gz -C $DISTDIR/
+            git fetch --all --tags
+            export TAG=$(git tag)
+            echo "tag=$TAG" >> $GITHUB_ENV
+            export PKGNAME=netlink-bin-x86_64-${TAG:1}
+            echo "package-name=$PKGNAME.tar.gz" >> $GITHUB_OUTPUT
+            ls | xargs tar -czf $PKGNAME.tar.gz
 
       - name: Upload to release
         uses: softprops/action-gh-release@v1
         with:
-            files: ${{ steps.build.outputs.package-name }}
-            draft: true
+            files: ${{ steps.tag-archive.outputs.package-name }}
+            prerelease: false
+            draft: false
+            name: "netlink"
+            tag_name: ${{ env.tag }}
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
