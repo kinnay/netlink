@@ -1,0 +1,55 @@
+name: Release 
+
+on: [push]
+
+jobs:
+  build-archlinux:
+    name: Build
+    runs-on: ubuntu-latest
+
+    outputs:
+      package-name: ${{ steps.build.outputs.package-name }}
+        
+    container:
+      image: 'archlinux:base'
+
+    steps:
+      - name: Prepare container and Install Dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm python-trio git
+
+      - name: Git Safe Directory
+        run: 	git config --global --add safe.directory /__w/netlink/netlink
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '>=3.7 <3.12'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build distribution
+        run: python setup.py sdist
+
+      - name: Package and Upload
+        id: tag-archive
+        run: |
+            git fetch --all --tags
+            export TAG=$(git tag)
+            echo "tag=$TAG" >> $GITHUB_ENV
+            export PKGNAME=netlink-x86_64-${TAG:1}
+            echo "package-name=$PKGNAME.tar.gz" >> $GITHUB_OUTPUT
+            ls | xargs tar -czf $PKGNAME.tar.gz
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+            files: ${{ steps.tag-archive.outputs.package-name }}
+            prerelease: false
+            draft: false
+            name: "Python-Netlink"
+            tag_name: ${{ env.tag }}
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
