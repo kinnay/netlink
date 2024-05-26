@@ -1,5 +1,5 @@
 # Netlink
-[![Netlink](https://github.com/kinnay/netlink/actions/workflows/main.yaml/badge.svg)](https://github.com/kinnay/netlink/actions/workflows/main.yaml) 
+[![Netlink](https://github.com/kinnay/netlink/workflows/Release/badge.svg)](https://github.com/kinnay/netlink/actions/workflows/main.yaml) 
 
 This package provides an asynchronous implementation of the Linux netlink protocol, including basic support for nl80211.
 
