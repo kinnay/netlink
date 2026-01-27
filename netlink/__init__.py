@@ -1,5 +1,5 @@
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 from dataclasses import dataclass
 from netlink import attributes
@@ -108,7 +108,7 @@ class NetlinkSocket:
 	_socket: trio.socket.SocketType
 	_pid: int
 
-	_sequence: itertools.count[int]
+	_sequence: Iterator[int]
 	_pending: dict[int, trio.Event]
 	_replies: dict[int, NetlinkMessage]
 	_packets: dict[int, list[NetlinkMessage]]

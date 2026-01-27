@@ -166,35 +166,35 @@ class GenericNetlinkReceiver:
 class GenericNetlinkSocket:
 	ATTRIBUTES: dict[int, typing.Any] = {}
 
-	_netlink: GenericNetlinkReceiver
-	_family: Family
+	receiver: GenericNetlinkReceiver
+	family: Family
 	
-	def __init__(self, netlink: GenericNetlinkReceiver, family: Family):
-		self.netlink = netlink
+	def __init__(self, receiver: GenericNetlinkReceiver, family: Family):
+		self.receiver = receiver
 		self.family = family
 
 	def add_membership(self, name: str) -> None:
-		if name not in self._family.mcast_groups:
+		if name not in self.family.mcast_groups:
 			raise ValueError(f"Unknown multicast group: {name}")
-		self.netlink.add_membership(self._family.mcast_groups[name])
+		self.receiver.add_membership(self.family.mcast_groups[name])
 	
 	async def receive(self) -> GenericNetlinkMessage:
-		return self._parse_message(await self.netlink.receive(self._family.id))
+		return self._parse_message(await self.receiver.receive(self.family.id))
 	
 	async def request(
 		self, cmd: int, attrs: dict[int, typing.Any] = {}, flags: int = 0,
 		header: bytes = b""
 	) -> list[GenericNetlinkMessage]:
-		if len(header) != self._family.hdrsize:
+		if len(header) != self.family.hdrsize:
 			raise ValueError("Invalid header size")
 		
 		body = attributes.encode(attrs, self.ATTRIBUTES)
-		padding = (4 - (self._family.hdrsize % 4)) % 4
+		padding = (4 - (self.family.hdrsize % 4)) % 4
 		payload = header + bytes(padding) + body
 		
-		header = struct.pack("BBH", cmd, self._family.version, 0)
-		messages = await self.netlink.request(
-			self._family.id, header + payload, flags
+		header = struct.pack("BBH", cmd, self.family.version, 0)
+		messages = await self.receiver.request(
+			self.family.id, header + payload, flags
 		)
 		
 		generic = []
@@ -203,10 +203,10 @@ class GenericNetlinkSocket:
 		return generic
 	
 	def _parse_message(self, message: netlink.NetlinkMessage):
-		attroffs = (self._family.hdrsize + 3) & ~3
+		attroffs = (self.family.hdrsize + 3) & ~3
 		
 		cmd, version, _ = struct.unpack_from("BBH", message.payload)
-		header = message.payload[4:4+self._family.hdrsize]
+		header = message.payload[4:4+self.family.hdrsize]
 		attrs = attributes.decode(message.payload[4+attroffs:], self.ATTRIBUTES)
 		return GenericNetlinkMessage(
 			message.type, message.flags, cmd, version, header, attrs
@@ -244,7 +244,7 @@ class GenericNetlinkController(GenericNetlinkSocket):
 	
 	async def get[T: GenericNetlinkSocket](self, name: str, cls: type[T]) -> T:
 		family = await self.get_family_by_name(name)
-		return cls(self.netlink, family)
+		return cls(self.receiver, family)
 	
 	async def get_families(self) -> list[Family]:
 		messages = await self.request(CTRL_CMD_GETFAMILY, flags=netlink.NLM_F_DUMP)
