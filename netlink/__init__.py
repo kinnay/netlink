@@ -1,5 +1,9 @@
 
+from collections.abc import AsyncIterator
+
+from dataclasses import dataclass
 from netlink import attributes
+
 import contextlib
 import itertools
 import struct
@@ -93,97 +97,118 @@ ATTRIBUTES_ERROR = {
 }
 
 
+@dataclass
 class NetlinkMessage:
-	def __init__(self, type, flags, payload):
-		self.type = type
-		self.flags = flags
-		self.payload = payload
+	type: int
+	flags: int
+	payload: bytes
 
 
 class NetlinkSocket:
-	def __init__(self, s):
-		self.s = s
-		self.pid = s.getsockname()[0]
+	_socket: trio.socket.SocketType
+	_pid: int
+
+	_sequence: itertools.count[int]
+	_pending: dict[int, trio.Event]
+	_replies: dict[int, NetlinkMessage]
+	_packets: dict[int, list[NetlinkMessage]]
+
+	_send_channel: trio.MemorySendChannel[NetlinkMessage]
+	_recv_channel: trio.MemoryReceiveChannel[NetlinkMessage]
+
+	def __init__(self, socket: trio.socket.SocketType):
+		self._socket = socket
+		self._pid = socket.getsockname()[0]
 		
-		self.sequence = itertools.count(1)
-		self.pending = {}
-		self.replies = {}
-		self.packets = {}
+		self._sequence = itertools.count(1)
+		self._pending = {}
+		self._replies = {}
+		self._packets = {}
 		
-		self.send_channel, self.recv_channel = trio.open_memory_channel(math.inf)
+		self._send_channel, self._recv_channel = \
+			trio.open_memory_channel(math.inf)
 	
 	def __enter__(self): return self
 	def __exit__(self, typ, val, tb):
-		self.send_channel.close()
+		self._send_channel.close()
 	
-	def add_membership(self, id):
-		self.s.setsockopt(SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, id)
+	def add_membership(self, id: int) -> None:
+		self._socket.setsockopt(SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, id)
 	
-	async def start(self):
-		while True:
-			data = await self.s.recv(65536)
-			while data:
-				length, type, flags, sequence, pid = struct.unpack_from("IHHII", data)
-				payload = data[16:length]
-				
-				message = NetlinkMessage(type, flags, payload)
-				if type == NLMSG_ERROR or type == NLMSG_DONE:
-					if sequence in self.pending:
-						self.replies[sequence] = message
-						self.pending.pop(sequence).set()
-					else:
-						logger.warning("Received unexpected ack or error packet")
-				elif sequence == 0:
-					await self.send_channel.send(message)
-				elif sequence in self.packets:
-					self.packets[sequence].append(message)
-				else:
-					logger.warning("Received packet with unexpected sequence: %i" %sequence)
-				
-				data = data[length:]
-	
-	async def send(self, data):
-		await self.s.send(data)
-	
-	async def receive(self):
-		return await self.recv_channel.receive()
-	
-	async def request(self, type, payload=b"", flags=0):
+	async def receive(self) -> NetlinkMessage:
+		return await self._recv_channel.receive()
+
+	async def request(
+		self, type, payload: bytes = b"", flags: int = 0
+	) -> list[NetlinkMessage]:
 		event = trio.Event()
 		
-		sequence = next(self.sequence)
-		self.pending[sequence] = event
-		self.packets[sequence] = []
+		sequence = next(self._sequence)
+		self._pending[sequence] = event
+		self._packets[sequence] = []
 		
 		flags |= NLM_F_REQUEST | NLM_F_ACK
 		
 		length = 16 + len(payload)
-		header = struct.pack("IHHII", length, type, flags, sequence, self.pid)
-		await self.send(header + payload)
+		header = struct.pack("IHHII", length, type, flags, sequence, self._pid)
+		await self._send(header + payload)
 		
 		await event.wait()
 		
-		response = self.replies.pop(sequence)
+		response = self._replies.pop(sequence)
 		if response.type == NLMSG_ERROR:
 			code = struct.unpack_from("i", response.payload)[0]
 			if code != 0:
 				message = os.strerror(-code)
 				if response.flags & NLM_F_ACK_TLVS:
-					attrs = attributes.decode(response.payload[20:], ATTRIBUTES_ERROR)
+					attrs = attributes.decode(
+						response.payload[20:], ATTRIBUTES_ERROR
+					)
 					if NLMSGERR_ATTR_MSG in attrs:
-						message = "%s: %s" %(message, attrs[NLMSGERR_ATTR_MSG])
+						message = f"{message}: {attrs[NLMSGERR_ATTR_MSG]}"
 				raise OSError(-code, message)
 		elif response.type != NLMSG_DONE:
 			raise RuntimeError("Expected ack or error packet")
 		
-		return self.packets.pop(sequence)
+		return self._packets.pop(sequence)
 	
-	async def noop(self):
+	async def noop(self) -> None:
 		await self.request(NLMSG_NOOP)
+	
+	async def start(self) -> None:
+		while True:
+			data = await self._socket.recv(65536)
+			while data:
+				length, type, flags, sequence, pid = \
+					struct.unpack_from("IHHII", data)
+				payload = data[16:length]
+				
+				message = NetlinkMessage(type, flags, payload)
+				if type == NLMSG_ERROR or type == NLMSG_DONE:
+					if sequence in self._pending:
+						self._replies[sequence] = message
+						self._pending.pop(sequence).set()
+					else:
+						logger.warning(
+							"Received unexpected ack or error packet"
+						)
+				elif sequence == 0:
+					await self._send_channel.send(message)
+				elif sequence in self._packets:
+					self._packets[sequence].append(message)
+				else:
+					logger.warning(
+						f"Received packet with unexpected sequence: {sequence}"
+					)
+				
+				data = data[length:]
+	
+	async def _send(self, data: bytes) -> None:
+		await self._socket.send(data)
 
 
 @contextlib.asynccontextmanager
-async def connect(family):
+async def connect(family: int) -> AsyncIterator[NetlinkSocket]:
 	s = trio.socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, family)
 	with s:
 		s.setsockopt(SOL_NETLINK, NETLINK_CAP_ACK, True)

@@ -1,4 +1,6 @@
 
+from collections.abc import AsyncIterator
+
 from netlink import generic, attributes
 import contextlib
 
@@ -1408,6 +1410,6 @@ class NL80211(generic.GenericNetlinkSocket):
 
 
 @contextlib.asynccontextmanager
-async def connect():
+async def connect() -> AsyncIterator[NL80211]:
 	async with generic.connect() as ctrl:
 		yield await ctrl.get("nl80211", NL80211)

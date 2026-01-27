@@ -1,9 +1,12 @@
 
+from collections.abc import AsyncIterator
+
 from netlink import attributes
 import netlink
 
 import contextlib
 import struct
+import typing
 
 
 RTM_NEWADDR = 20
@@ -124,28 +127,37 @@ ATTRIBUTES_NDA = {
 
 
 class RouteController:
-	def __init__(self, netlink):
+	def __init__(self, netlink: netlink.NetlinkSocket):
 		self.netlink = netlink
 	
-	async def add_address(self, family, prefix, flags, scope, index, attrs):
+	async def add_address(
+		self, family: int, prefix: int, flags: int, scope: int, index: int,
+		attrs: dict[int, typing.Any]
+	) -> None:
 		payload = struct.pack("BBBBI", family, prefix, flags, scope, index)
 		payload += attributes.encode(attrs, ATTRIBUTES_IFA)
 		flags = netlink.NLM_F_CREATE | netlink.NLM_F_EXCL
 		await self.netlink.request(RTM_NEWADDR, payload, flags)
 	
-	async def add_neighbor(self, family, index, state, flags, type, attrs):
+	async def add_neighbor(
+		self, family: int, index: int, state: int, flags: int, type: int,
+		attrs: dict[int, typing.Any]
+	) -> None:
 		payload = struct.pack("B3xiHBB", family, index, state, flags, type)
 		payload += attributes.encode(attrs, ATTRIBUTES_NDA)
 		flags = netlink.NLM_F_CREATE | netlink.NLM_F_EXCL
 		await self.netlink.request(RTM_NEWNEIGH, payload, flags)
 	
-	async def remove_neighbor(self, family, index, state, flags, type, attrs):
+	async def remove_neighbor(
+		self, family: int, index: int, state: int, flags: int, type: int,
+		attrs: dict[int, typing.Any]
+	) -> None:
 		payload = struct.pack("B3xiHBB", family, index, state, flags, type)
 		payload += attributes.encode(attrs, ATTRIBUTES_NDA)
 		await self.netlink.request(RTM_DELNEIGH, payload, 0)
 
 
 @contextlib.asynccontextmanager
-async def connect():
+async def connect() -> AsyncIterator[RouteController]:
 	async with netlink.connect(netlink.NETLINK_ROUTE) as sock:
 		yield RouteController(sock)

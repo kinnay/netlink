@@ -1,8 +1,13 @@
 
+from collections.abc import AsyncIterator
+
+from dataclasses import dataclass
 from netlink import attributes
+
 import contextlib
 import netlink
 import struct
+import typing
 
 
 GENL_ID_CTRL = netlink.NLMSG_MIN_TYPE
@@ -53,7 +58,15 @@ CTRL_ATTR_POLICY_DUMP = 2
 
 
 class Family:
-	def __init__(self, attributes):
+	id: int
+	name: str
+	version: int
+	hdrsize: int
+	maxattr: int
+	commands: dict[int, int]
+	mcast_groups: dict[str, int]
+
+	def __init__(self, attributes: dict[int, typing.Any]):
 		self.id = attributes[CTRL_ATTR_FAMILY_ID]
 		self.name = attributes[CTRL_ATTR_FAMILY_NAME]
 		self.version = attributes[CTRL_ATTR_VERSION]
@@ -74,106 +87,130 @@ class Family:
 
 
 class CommandPolicy:
-	def __init__(self, attributes):
+	do: int | None
+	dump: int | None
+
+	def __init__(self, attributes: dict[int, typing.Any]):
 		self.do = attributes.get(CTRL_ATTR_POLICY_DO)
 		self.dump = attributes.get(CTRL_ATTR_POLICY_DO)
 
 
 class Policy:
+	family_id: int | None
+
+	policies: dict[int, dict[int, attributes.Policy]]
+	commands: dict[int, CommandPolicy]
+
 	def __init__(self):
 		self.family_id = None
 		self.policies = {}
 		self.commands = {}
 	
-	def update(self, attributes):
-		family_id = attributes[CTRL_ATTR_FAMILY_ID]
+	def update(self, attribs: dict[int, typing.Any]) -> None:
+		family_id = attribs[CTRL_ATTR_FAMILY_ID]
 		if self.family_id is None:
 			self.family_id = family_id
 		elif self.family_id != family_id:
 			raise ValueError("Received policy with mixed family ids")
 		
-		if CTRL_ATTR_OP_POLICY in attributes:
-			for cmd, attrs in attributes[CTRL_ATTR_OP_POLICY].items():
+		if CTRL_ATTR_OP_POLICY in attribs:
+			for cmd, attrs in attribs[CTRL_ATTR_OP_POLICY].items():
 				self.commands[cmd] = CommandPolicy(attrs)
-		if CTRL_ATTR_POLICY in attributes:
-			for index, policy in attributes[CTRL_ATTR_POLICY].items():
+		if CTRL_ATTR_POLICY in attribs:
+			for index, policy in attribs[CTRL_ATTR_POLICY].items():
 				if index not in self.policies:
 					self.policies[index] = {}
 				for attr, policy in policy.items():
 					self.policies[index][attr] = attributes.Policy(policy)
 
 
+@dataclass
 class GenericNetlinkMessage:
-	def __init__(self, family, flags, type, version, header, attributes):
-		self.family = family
-		self.flags = flags
-		self.type = type
-		self.version = version
-		self.header = header
-		self.attributes = attributes
+	family: int
+	flags: int
+	type: int
+	version: int
+	header: bytes
+	attributes: dict[int, typing.Any]
 
 
 class GenericNetlinkReceiver:
-	def __init__(self, netlink):
-		self.netlink = netlink
-		self.messages = {}
+	_netlink: netlink.NetlinkSocket
+	_messages: dict[int, list[netlink.NetlinkMessage]]
+
+	def __init__(self, netlink: netlink.NetlinkSocket):
+		self._netlink = netlink
+		self._messages = {}
 	
-	def add_membership(self, id):
-		self.netlink.add_membership(id)
+	def add_membership(self, id: int) -> None:
+		self._netlink.add_membership(id)
 	
-	async def receive(self, family):
-		if family not in self.messages:
-			self.messages[family] = []
+	async def receive(self, family: int) -> netlink.NetlinkMessage:
+		if family not in self._messages:
+			self._messages[family] = []
 		
-		while not self.messages[family]:
-			message = await self.netlink.receive()
-			if message.type not in self.messages:
-				self.messages[message.type] = []
-			self.messages[message.type].append(message)
+		while not self._messages[family]:
+			message = await self._netlink.receive()
+			if message.type not in self._messages:
+				self._messages[message.type] = []
+			self._messages[message.type].append(message)
 		
-		return self.messages[family].pop(0)
+		return self._messages[family].pop(0)
 	
-	async def request(self, type, payload, flags=0):
-		return await self.netlink.request(type, payload, flags)
+	async def request(
+		self, type: int, payload: bytes, flags: int = 0
+	) -> list[netlink.NetlinkMessage]:
+		return await self._netlink.request(type, payload, flags)
 
 
 class GenericNetlinkSocket:
-	ATTRIBUTES = {}
+	ATTRIBUTES: dict[int, typing.Any] = {}
+
+	_netlink: GenericNetlinkReceiver
+	_family: Family
 	
-	def __init__(self, netlink, family):
+	def __init__(self, netlink: GenericNetlinkReceiver, family: Family):
 		self.netlink = netlink
 		self.family = family
 
-	def add_membership(self, name):
-		if name not in self.family.mcast_groups:
-			raise ValueError("Unknown multicast group: %s" %name)
-		self.netlink.add_membership(self.family.mcast_groups[name])
+	def add_membership(self, name: str) -> None:
+		if name not in self._family.mcast_groups:
+			raise ValueError(f"Unknown multicast group: {name}")
+		self.netlink.add_membership(self._family.mcast_groups[name])
 	
-	def parse_message(self, message):
-		attroffs = (self.family.hdrsize + 3) & ~3
-		
-		cmd, version, _ = struct.unpack_from("BBH", message.payload)
-		header = message.payload[4:4+self.family.hdrsize]
-		attrs = attributes.decode(message.payload[4+attroffs:], self.ATTRIBUTES)
-		return GenericNetlinkMessage(message.type, message.flags, cmd, version, header, attrs)
+	async def receive(self) -> GenericNetlinkMessage:
+		return self._parse_message(await self.netlink.receive(self._family.id))
 	
-	async def receive(self):
-		return self.parse_message(await self.netlink.receive(self.family.id))
-	
-	async def request(self, cmd, attrs={}, flags=0, header=b""):
-		if len(header) != self.family.hdrsize:
+	async def request(
+		self, cmd: int, attrs: dict[int, typing.Any] = {}, flags: int = 0,
+		header: bytes = b""
+	) -> list[GenericNetlinkMessage]:
+		if len(header) != self._family.hdrsize:
 			raise ValueError("Invalid header size")
 		
-		padding = (4 - (self.family.hdrsize % 4)) % 4
-		payload = header + bytes(padding) + attributes.encode(attrs, self.ATTRIBUTES)
+		body = attributes.encode(attrs, self.ATTRIBUTES)
+		padding = (4 - (self._family.hdrsize % 4)) % 4
+		payload = header + bytes(padding) + body
 		
-		header = struct.pack("BBH", cmd, self.family.version, 0)
-		messages = await self.netlink.request(self.family.id, header + payload, flags)
+		header = struct.pack("BBH", cmd, self._family.version, 0)
+		messages = await self.netlink.request(
+			self._family.id, header + payload, flags
+		)
 		
 		generic = []
 		for message in messages:
-			generic.append(self.parse_message(message))
+			generic.append(self._parse_message(message))
 		return generic
+	
+	def _parse_message(self, message: netlink.NetlinkMessage):
+		attroffs = (self._family.hdrsize + 3) & ~3
+		
+		cmd, version, _ = struct.unpack_from("BBH", message.payload)
+		header = message.payload[4:4+self._family.hdrsize]
+		attrs = attributes.decode(message.payload[4+attroffs:], self.ATTRIBUTES)
+		return GenericNetlinkMessage(
+			message.type, message.flags, cmd, version, header, attrs
+		)
 
 
 class GenericNetlinkController(GenericNetlinkSocket):
@@ -205,29 +242,29 @@ class GenericNetlinkController(GenericNetlinkSocket):
 		CTRL_ATTR_OP: attributes.u32()
 	}
 	
-	async def get(self, name, cls):
+	async def get[T: GenericNetlinkSocket](self, name: str, cls: type[T]) -> T:
 		family = await self.get_family_by_name(name)
 		return cls(self.netlink, family)
 	
-	async def get_families(self):
+	async def get_families(self) -> list[Family]:
 		messages = await self.request(CTRL_CMD_GETFAMILY, flags=netlink.NLM_F_DUMP)
 		return [Family(message.attributes) for message in messages]
 	
-	async def get_family_by_id(self, id):
+	async def get_family_by_id(self, id: int) -> Family:
 		attrs = {
 			CTRL_ATTR_FAMILY_ID: id
 		}
 		messages = await self.request(CTRL_CMD_GETFAMILY, attrs)
 		return Family(messages[0].attributes)
 	
-	async def get_family_by_name(self, name):
+	async def get_family_by_name(self, name: str) -> Family:
 		attrs = {
 			CTRL_ATTR_FAMILY_NAME: name
 		}
 		messages = await self.request(CTRL_CMD_GETFAMILY, attrs)
 		return Family(messages[0].attributes)
 
-	async def get_policy(self, attrs):
+	async def get_policy(self, attrs: dict[int, typing.Any]) -> Policy | None:
 		messages = await self.request(CTRL_CMD_GETPOLICY, attrs, netlink.NLM_F_DUMP)
 		
 		if not messages:
@@ -238,23 +275,25 @@ class GenericNetlinkController(GenericNetlinkSocket):
 			policy.update(message.attributes)
 		return policy
 
-	async def get_policy_by_id(self, id, cmd=None):
+	async def get_policy_by_id(self, id: int, cmd: int | None = None) -> Policy | None:
 		attrs = {
 			CTRL_ATTR_FAMILY_ID: id
 		}
-		if cmd is not None: attrs[CTRL_ATTR_OP] = cmd
+		if cmd is not None:
+			attrs[CTRL_ATTR_OP] = cmd
 		return await self.get_policy(attrs)
 	
-	async def get_policy_by_name(self, name, cmd=None):
-		attrs = {
+	async def get_policy_by_name(self, name: str, cmd: int | None = None) -> Policy | None:
+		attrs: dict[int, typing.Any] = {
 			CTRL_ATTR_FAMILY_NAME: name
 		}
-		if cmd is not None: attrs[CTRL_ATTR_OP] = cmd
+		if cmd is not None:
+			attrs[CTRL_ATTR_OP] = cmd
 		return await self.get_policy(attrs)
 
 
 @contextlib.asynccontextmanager
-async def connect():
+async def connect() -> AsyncIterator[GenericNetlinkController]:
 	# Bootstrap
 	family = Family({
 		CTRL_ATTR_FAMILY_ID: GENL_ID_CTRL,

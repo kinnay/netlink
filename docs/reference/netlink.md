@@ -12,7 +12,6 @@ Provides a basic implementation of the netlink protocol.
 <span class="docs">Creates an `AF_NETLINK` socket for the given [family](#netlink-families).</span>
 
 ## Netlink Families
-<span class="docs">
 `NETLINK_ROUTE = 0`<br>
 `NETLINK_UNUSED = 1`<br>
 `NETLINK_USERSOCK = 2`<br>
@@ -37,10 +36,8 @@ Provides a basic implementation of the netlink protocol.
 `NETLINK_SMC = 22`
 
 `NETLINK_INET_DIAG = NETLINK_SOCK_DIAG`
-</span>
 
 ## Netlink Flags
-<span class="docs">
 `NLM_F_REQUEST = 1`<br>
 `NLM_F_MULTI = 2`<br>
 `NLM_F_ACK = 4`<br>
@@ -62,16 +59,13 @@ Provides a basic implementation of the netlink protocol.
 
 `NLM_F_CAPPED = 0x100`<br>
 `NLM_F_ACK_TLVS = 0x200`
-</span>
 
 ## Message Types
-<span class="docs">
 `NLMSG_NOOP = 1`<br>
 `NLMSG_ERROR = 2`<br>
 `NLMSG_DONE = 3`<br>
 `NLMSG_OVERRUN = 4`<br>
 `NLMSG_MIN_TYPE = 16`
-</span>
 
 ## NetlinkMessage
 `type: int`<br>
@@ -88,5 +82,5 @@ Provides a basic implementation of the netlink protocol.
 <code>**async def receive**() -> [NetlinkMessage](#netlinkmessage)</code><br>
 <span class="docs">Receives a netlink message from the kernel with sequence id 0.</span>
 
-<code>**async def noop**()</code><br>
+<code>**async def noop**() -> None</code><br>
 <span class="docs">Sends `NLMSG_NOOP` to the kernel and waits for acknowledgement. Basically, this method does nothing.</span>

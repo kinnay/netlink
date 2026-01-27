@@ -1,6 +1,10 @@
 
 from netlink import streams
 import struct
+import typing
+
+
+Dict = dict
 
 
 NLA_F_NESTED = 1 << 15
@@ -180,7 +184,16 @@ def decode(data, typemap):
 
 
 class Policy:
-	def __init__(self, attributes):
+	type: int
+	policy_id: int | None
+	policy_maxtype: int | None
+	min_length: int | None
+	max_length: int | None
+	min_value: int | None
+	max_value: int | None
+	mask: int | None
+	
+	def __init__(self, attributes: Dict[int, typing.Any]):
 		self.type = attributes[NL_POLICY_TYPE_ATTR_TYPE]
 		
 		self.policy_id = attributes.get(NL_POLICY_TYPE_ATTR_POLICY_IDX)
