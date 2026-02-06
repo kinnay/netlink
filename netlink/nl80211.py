@@ -1194,7 +1194,8 @@ class NL80211(generic.GenericNetlinkSocket):
 		NL80211_ATTR_MAX_SCAN_IE_LEN: attributes.u16(),
 		NL80211_ATTR_CIPHER_SUITES: attributes.binary(),
 		
-		#61 - 68
+		#60 - 68
+		NL80211_ATTR_FREQ_FIXED: attributes.flag(),
 		NL80211_ATTR_WIPHY_RETRY_SHORT: attributes.u8(),
 		NL80211_ATTR_WIPHY_RETRY_LONG: attributes.u8(),
 		NL80211_ATTR_WIPHY_FRAG_THRESHOLD: attributes.u32(),
