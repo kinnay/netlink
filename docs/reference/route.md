@@ -9,6 +9,10 @@ Provides a limited implementation of [rtnetlink](https://man7.org/linux/man-page
 <span class="docs">Creates a netlink socket for rtnetlink.</span>
 
 ## RouteController
+<code>**async def update_link**(family: int, type: int, index: int, flags: int, change: int,
+attrs: dict[int, Any]) -> None</code><br>
+<span class="docs">Updates the link layer attributes of the given interface (`RTM_NEWLINK`).</span>
+
 <code>**async def add_address**(family: int, prefix: int, flags: int, scope: int, index: int, attrs: dict[int, Any]) -> None</code><br>
 <span class="docs">Associates an IP address with the given interface (`RTM_NEWADDR`).</span>
 

@@ -10,7 +10,7 @@ long_description = \
 
 setuptools.setup(
 	name = "python-netlink",
-	version = "0.0.14",
+	version = "0.0.15",
 	description = description,
 	long_description = long_description,
 	author = "Yannik Marchand",

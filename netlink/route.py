@@ -9,9 +9,32 @@ import struct
 import typing
 
 
+RTM_NEWLINK = 16
 RTM_NEWADDR = 20
 RTM_NEWNEIGH = 28
 RTM_DELNEIGH = 29
+
+IFLA_UNSPEC = 0
+IFLA_ADDRESS = 1
+IFLA_BROADCAST = 2
+IFLA_IFNAME = 3
+IFLA_MTU = 4
+IFLA_LINK = 5
+IFLA_QDISC = 6
+IFLA_STATS = 7
+IFLA_COST = 8
+IFLA_PRIORITY = 9
+IFLA_MASTER = 10
+IFLA_WIRELESS = 11
+IFLA_PROTINFO = 12
+IFLA_TXQLEN = 13
+IFLA_MAP = 14
+IFLA_WEIGHT = 15
+IFLA_OPERSTATE = 16
+IFLA_LINKMODE = 17
+IFLA_LINKINFO = 18
+IFLA_NET_NS_PID = 19
+IFLA_IFALIAS = 20
 
 IFA_UNSPEC = 0
 IFA_ADDRESS = 1
@@ -89,6 +112,20 @@ RT_SCOPE_HOST = 254
 RT_SCOPE_NOWHERE = 255
 
 
+ATTRIBUTES_IFLA = {
+	IFLA_ADDRESS: attributes.binary(),
+	IFLA_BROADCAST: attributes.binary(),
+	IFLA_IFNAME: attributes.string(),
+	IFLA_MTU: attributes.u32(),
+	IFLA_LINK: attributes.u32(),
+	IFLA_QDISC: attributes.string(),
+	IFLA_TXQLEN: attributes.u32(),
+	IFLA_MAP: attributes.binary(),
+	IFLA_OPERSTATE: attributes.u8(),
+	IFLA_LINKMODE: attributes.u8(),
+	IFLA_IFALIAS: attributes.string()
+}
+
 ATTRIBUTES_IFA = {
 	IFA_ADDRESS: attributes.binary(),
 	IFA_LOCAL: attributes.binary(),
@@ -129,6 +166,14 @@ ATTRIBUTES_NDA = {
 class RouteController:
 	def __init__(self, netlink: netlink.NetlinkSocket):
 		self.netlink = netlink
+	
+	async def update_link(
+		self, family: int, type: int, index: int, flags: int, change: int,
+		attrs: dict[int, typing.Any]
+	) -> None:
+		payload = struct.pack("BxHiII", family, type, index, flags, change)
+		payload += attributes.encode(attrs, ATTRIBUTES_IFLA)
+		await self.netlink.request(RTM_NEWLINK, payload, 0)
 	
 	async def add_address(
 		self, family: int, prefix: int, flags: int, scope: int, index: int,
